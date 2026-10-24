@@ -8,7 +8,9 @@ ADMIN_ID = 1833467870
 
 SUPPORT_USERNAME = "itsokbroitok"  
 CHANNEL_LINK = "https://t.me/MYSYQHUB" 
-QR_IMAGE_URL = "https://raw.githubusercontent.com/dhar75906-bot/afterdarkstore-bot/main/qr.jpg"
+
+# Yahan hum GitHub link ki jagah apna Telegram ka file_id daalenge
+QR_IMAGE_ID = "YAHAN_APNA_FILE_ID_DALNA_HAI" 
 DOWNLOAD_FILE_LINK = "File ka link abhi add nahi kiya gaya hai. Kripya baad mein check karein." 
 
 # ================= DATABASE SETUP =================
@@ -47,7 +49,6 @@ def check_ban(user_id):
     user = db_query("SELECT is_banned FROM users WHERE user_id = ?", (user_id,), fetchone=True)
     return user[0] == 1 if user else False
 
-# ================= MENUS =================
 def get_main_menu(user_id):
     keyboard = [
         [InlineKeyboardButton("🤖 Jarvis engine", callback_data='jarvis')],
@@ -73,24 +74,17 @@ def get_plans_menu():
     ]
     return InlineKeyboardMarkup(keyboard)
 
-# ================= START COMMAND =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if check_ban(user.id):
         return await update.message.reply_text("❌ Aapko is bot se ban kar diya gaya hai.")
-
     add_user(user.id, user.first_name)
-    await update.message.reply_text(
-        f"Welcome to Master Bot, {user.first_name}! 👑\nSelect an option below:", 
-        reply_markup=get_main_menu(user.id)
-    )
+    await update.message.reply_text(f"Welcome to Master Bot, {user.first_name}! 👑\nSelect an option below:", reply_markup=get_main_menu(user.id))
 
-# ================= BUTTON HANDLERS =================
 async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = query.from_user.id
     first_name = query.from_user.first_name
-    
     add_user(user_id, first_name)
     if check_ban(user_id): return await query.answer("Aap banned hain!", show_alert=True)
     await query.answer()
@@ -98,91 +92,78 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data == 'back':
         text = f"Welcome to Master Bot, {first_name}! 👑\nSelect an option below:"
         await query.edit_message_text(text, reply_markup=get_main_menu(user_id))
-        
     elif query.data == 'jarvis':
         text = "🔑 **KEY PLAN LIST**\n\nApna plan select karein:"
         await query.edit_message_text(text, reply_markup=get_plans_menu(), parse_mode="Markdown")
-        
     elif query.data.startswith('plan_'):
         amount = query.data.split('_')[1]
         text = f"🛒 **Plan Selected:** ₹{amount}\n\n📷 **Payment Instructions:**\nNeeche diye gaye QR Code ko scan karein aur ₹{amount} pay karein.\n\nPayment ke baad apna **12-digit UPI Transaction ID (UTR)** yahan bhej dein."
-        keyboard = [
-            [InlineKeyboardButton("🔙 Back to Plans", callback_data='back_from_photo')]
-        ]
+        keyboard = [[InlineKeyboardButton("🔙 Back to Plans", callback_data='back_from_photo')]]
+        
+        # Agar file_id set nahi hai toh error na aaye isliye check lagaya hai
         try:
             await context.bot.send_photo(
                 chat_id=user_id,
-                photo=QR_IMAGE_URL,
+                photo=QR_IMAGE_ID,
                 caption=text,
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode="Markdown"
             )
             await query.message.delete()
-        except Exception as e:
-            # Agar QR image load hone mein koi error aaye toh text bhej dega taaki bot crash na ho
-            await query.edit_message_text(
-                text=text + f"\n\n*(QR Image Link Error: {e})*", 
-                reply_markup=InlineKeyboardMarkup(keyboard), 
-                parse_mode="Markdown"
-            )
+        except:
+            await query.edit_message_text(text=text + "\n\n*(QR Code image ID set nahi hai!)*", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
         
     elif query.data == 'back_from_photo':
         await query.message.delete()
         text = f"Welcome to Master Bot, {first_name}! 👑\nSelect an option below:"
         await context.bot.send_message(chat_id=user_id, text=text, reply_markup=get_main_menu(user_id))
-        
     elif query.data == 'download_file':
         text = f"📥 **Download File**\n\n{DOWNLOAD_FILE_LINK}"
         keyboard = [[InlineKeyboardButton("🔙 Back", callback_data='back')]]
-        await query.edit_message_text(text, reply_markup=get_keyboard_back := InlineKeyboardMarkup(keyboard))
-        
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
     elif query.data == 'admin' and user_id == ADMIN_ID:
         users = db_query("SELECT COUNT(*) FROM users", fetchone=True)[0]
         text = f"⚙️ **Admin Panel**\n\n👥 Total Users: `{users}`\n\n**Commands:**\n`/broadcast msg`\n`/ban user_id`\n`/unban user_id`"
         keyboard = [[InlineKeyboardButton("🔙 Back", callback_data='back')]]
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
 
-# ================= MESSAGE & ADMIN HANDLERS =================
 async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = user.id
-    text = update.message.text
+    
+    # AGAR ADMIN NE PHOTO BHEJI HAI, TOH BOT USKA FILE_ID BHI DEGA
+    if user_id == ADMIN_ID and update.message.photo:
+        photo_id = update.message.photo[-1].file_id
+        await update.message.reply_text(f"📸 **Aapka File ID yeh hai:**\n`{photo_id}`\n\nIse copy karke code mein `QR_IMAGE_ID` ki jagah daal dein!", parse_mode="Markdown")
+        return
 
-    if user_id == ADMIN_ID:
-        # Admin commands check
+    if user_id == ADMIN_ID and update.message.text:
+        text = update.message.text
         if text.startswith("/broadcast") and context.args:
             msg = " ".join(context.args)
             users = db_query("SELECT user_id FROM users", fetchall=True)
-            sent = 0
-            m = await update.message.reply_text("Broadcasting...")
             for u in users:
-                try:
-                    await context.bot.send_message(chat_id=u[0], text=f"📢 **Admin Message:**\n\n{msg}", parse_mode="Markdown")
-                    sent += 1
+                try: await context.bot.send_message(chat_id=u[0], text=f"📢 **Admin Message:**\n\n{msg}", parse_mode="Markdown")
                 except: pass
-            await m.edit_text(f"✅ Broadcast done: {sent}/{len(users)}")
+            await update.message.reply_text("✅ Broadcast done.")
             return
         elif text.startswith("/ban") and context.args:
             db_query("UPDATE users SET is_banned = 1 WHERE user_id = ?", (int(context.args[0]),), commit=True)
-            await update.message.reply_text(f"✅ User {context.args[0]} banned.")
+            await update.message.reply_text(f"✅ User banned.")
             return
         elif text.startswith("/unban") and context.args:
             db_query("UPDATE users SET is_banned = 0 WHERE user_id = ?", (int(context.args[0]),), commit=True)
-            await update.message.reply_text(f"✅ User {context.args[0]} unbanned.")
+            await update.message.reply_text(f"✅ User unbanned.")
             return
 
-    # Normal user ne agar payment ke baad UTR (Transaction ID) bheja hai
-    if user_id != ADMIN_ID:
-        # Forward UTR to Admin for instant verification
+    if user_id != ADMIN_ID and update.message.text:
+        text = update.message.text
         await context.bot.send_message(
             chat_id=ADMIN_ID,
             text=f"🔔 **New Payment Verification Request!**\n\n👤 User: {user.first_name} (`{user_id}`)\n💳 UTR / Details: `{text}`",
             parse_mode="Markdown"
         )
-        await update.message.reply_text(
-            "✅ **Aapka UTR / Payment detail admin ko bhej diya gaya hai!**\nVerify hote hi aapko key mil jayegi.",
-            reply_markup=get_main_menu(user_id)
-        )
+        await update.message.reply_text("✅ **Aapka UTR admin ko bhej diya gaya hai!**", reply_markup=get_main_menu(user_id))
 
 if __name__ == '__main__':
     init_db()
@@ -190,7 +171,7 @@ if __name__ == '__main__':
     
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(buttons))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_messages))
+    app.add_handler(MessageHandler(filters.PHOTO | filters.TEXT & ~filters.COMMAND, handle_messages))
     
-    print("Master Bot Started...")
+    print("Master_Bot Started...")
     app.run_polling()
