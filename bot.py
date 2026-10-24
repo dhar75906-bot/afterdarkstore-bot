@@ -6,12 +6,10 @@ from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandle
 TOKEN = "8814146319:AAHIftzavL08p0A4801MOVz96p5gIOJUu-I"
 ADMIN_ID = 1833467870
 
-# === AAPKI DETAILS YAHAN SET HAIN ===
 SUPPORT_USERNAME = "itsokbroitok"  
 CHANNEL_LINK = "https://t.me/MYSYQHUB" 
 QR_IMAGE_URL = "https://raw.githubusercontent.com/dhar75906-bot/afterdarkstore-bot/main/qr.jpg"
 DOWNLOAD_FILE_LINK = "File ka link abhi add nahi kiya gaya hai. Kripya baad mein check karein." 
-# ====================================
 
 # ================= DATABASE SETUP =================
 def init_db():
@@ -107,27 +105,26 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     elif query.data.startswith('plan_'):
         amount = query.data.split('_')[1]
-        text = f"🛒 **Plan Selected:** ₹{amount}\n\n📷 **Payment Instructions:**\nNeeche diye gaye QR Code ko scan karein aur ₹{amount} pay karein.\nPayment poori hone ke baad '✅ Verify Payment' par click karein."
+        text = f"🛒 **Plan Selected:** ₹{amount}\n\n📷 **Payment Instructions:**\nNeeche diye gaye QR Code ko scan karein aur ₹{amount} pay karein.\n\nPayment ke baad apna **12-digit UPI Transaction ID (UTR)** yahan bhej dein."
         keyboard = [
-            [InlineKeyboardButton("✅ Verify Payment", callback_data='verify_payment')],
             [InlineKeyboardButton("🔙 Back to Plans", callback_data='back_from_photo')]
         ]
-        await context.bot.send_photo(
-            chat_id=user_id,
-            photo=QR_IMAGE_URL,
-            caption=text,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode="Markdown"
-        )
-        await query.message.delete()
-        
-    elif query.data == 'verify_payment':
-        text = "⏳ **Verification Pending**\n\nKripya apne payment ka Screenshot aur Transaction ID Admin ko DM karein. Verify hone ke baad aapko access mil jayega."
-        keyboard = [
-            [InlineKeyboardButton("📩 Send Screenshot to Admin", url=f"https://t.me/{SUPPORT_USERNAME}")],
-            [InlineKeyboardButton("🔙 Main Menu", callback_data='back_from_photo')]
-        ]
-        await query.edit_message_caption(caption=text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        try:
+            await context.bot.send_photo(
+                chat_id=user_id,
+                photo=QR_IMAGE_URL,
+                caption=text,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="Markdown"
+            )
+            await query.message.delete()
+        except Exception as e:
+            # Agar QR image load hone mein koi error aaye toh text bhej dega taaki bot crash na ho
+            await query.edit_message_text(
+                text=text + f"\n\n*(QR Image Link Error: {e})*", 
+                reply_markup=InlineKeyboardMarkup(keyboard), 
+                parse_mode="Markdown"
+            )
         
     elif query.data == 'back_from_photo':
         await query.message.delete()
@@ -137,7 +134,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == 'download_file':
         text = f"📥 **Download File**\n\n{DOWNLOAD_FILE_LINK}"
         keyboard = [[InlineKeyboardButton("🔙 Back", callback_data='back')]]
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+        await query.edit_message_text(text, reply_markup=get_keyboard_back := InlineKeyboardMarkup(keyboard))
         
     elif query.data == 'admin' and user_id == ADMIN_ID:
         users = db_query("SELECT COUNT(*) FROM users", fetchone=True)[0]
@@ -145,36 +142,45 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [[InlineKeyboardButton("🔙 Back", callback_data='back')]]
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
 
-# ================= ANTI-CHAT & ADMIN COMMANDS =================
-async def admin_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if user_id != ADMIN_ID: return
-    cmd = update.message.text.split()[0].lower()
-    args = context.args
+# ================= MESSAGE & ADMIN HANDLERS =================
+async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    user_id = user.id
+    text = update.message.text
 
-    if cmd == "/broadcast" and args:
-        msg = " ".join(args)
-        users = db_query("SELECT user_id FROM users", fetchall=True)
-        sent = 0
-        m = await update.message.reply_text("Broadcasting...")
-        for u in users:
-            try:
-                await context.bot.send_message(chat_id=u[0], text=f"📢 **Admin Message:**\n\n{msg}", parse_mode="Markdown")
-                sent += 1
-            except: pass
-        await m.edit_text(f"✅ Broadcast done: {sent}/{len(users)}")
-    elif cmd == "/ban" and args:
-        db_query("UPDATE users SET is_banned = 1 WHERE user_id = ?", (int(args[0]),), commit=True)
-        await update.message.reply_text(f"✅ User {args[0]} banned.")
-    elif cmd == "/unban" and args:
-        db_query("UPDATE users SET is_banned = 0 WHERE user_id = ?", (int(args[0]),), commit=True)
-        await update.message.reply_text(f"✅ User {args[0]} unbanned.")
+    if user_id == ADMIN_ID:
+        # Admin commands check
+        if text.startswith("/broadcast") and context.args:
+            msg = " ".join(context.args)
+            users = db_query("SELECT user_id FROM users", fetchall=True)
+            sent = 0
+            m = await update.message.reply_text("Broadcasting...")
+            for u in users:
+                try:
+                    await context.bot.send_message(chat_id=u[0], text=f"📢 **Admin Message:**\n\n{msg}", parse_mode="Markdown")
+                    sent += 1
+                except: pass
+            await m.edit_text(f"✅ Broadcast done: {sent}/{len(users)}")
+            return
+        elif text.startswith("/ban") and context.args:
+            db_query("UPDATE users SET is_banned = 1 WHERE user_id = ?", (int(context.args[0]),), commit=True)
+            await update.message.reply_text(f"✅ User {context.args[0]} banned.")
+            return
+        elif text.startswith("/unban") and context.args:
+            db_query("UPDATE users SET is_banned = 0 WHERE user_id = ?", (int(context.args[0]),), commit=True)
+            await update.message.reply_text(f"✅ User {context.args[0]} unbanned.")
+            return
 
-async def no_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
+    # Normal user ne agar payment ke baad UTR (Transaction ID) bheja hai
     if user_id != ADMIN_ID:
+        # Forward UTR to Admin for instant verification
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text=f"🔔 **New Payment Verification Request!**\n\n👤 User: {user.first_name} (`{user_id}`)\n💳 UTR / Details: `{text}`",
+            parse_mode="Markdown"
+        )
         await update.message.reply_text(
-            "❌ **Chatting is disabled.**\nKripya sirf neeche diye gaye buttons ka use karein👇", 
+            "✅ **Aapka UTR / Payment detail admin ko bhej diya gaya hai!**\nVerify hote hi aapko key mil jayegi.",
             reply_markup=get_main_menu(user_id)
         )
 
@@ -184,8 +190,7 @@ if __name__ == '__main__':
     
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(buttons))
-    app.add_handler(MessageHandler(filters.COMMAND & filters.User(ADMIN_ID), admin_commands))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, no_chat))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_messages))
     
     print("Master Bot Started...")
     app.run_polling()
