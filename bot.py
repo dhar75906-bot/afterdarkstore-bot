@@ -10,7 +10,7 @@ SUPPORT_USERNAME = "itsokbroitok"
 CHANNEL_LINK = "https://t.me/MYSYQHUB" 
 
 # Yahan hum GitHub link ki jagah apna Telegram ka file_id daalenge
-QR_IMAGE_ID = "YAHAN_APNA_FILE_ID_DALNA_HAI" 
+QR_IMAGE_ID = "AgACAgUAAxkBAAOJatycyAqfefnS6CUjErA-t-cNRkcAAnURaxs6nelWXUf7qRmePTwBAAMCAAN5AAM9BA" 
 DOWNLOAD_FILE_LINK = "File ka link abhi add nahi kiya gaya hai. Kripya baad mein check karein." 
 
 # ================= DATABASE SETUP =================
