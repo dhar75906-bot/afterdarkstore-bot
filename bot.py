@@ -10,7 +10,7 @@ ADMIN_ID = 1833467870
 SUPPORT_USERNAME = "itsokbroitok"  
 CHANNEL_LINK = "https://t.me/MYSYQHUB" 
 CHANNEL_USERNAME = "@MYSYQHUB" 
-QR_IMAGE_ID = "YAHAN_APNA_FILE_ID_DALNA_HAI" # Agar aapne file_id di thi toh wo yahan dalein, ya neeche fallback link hai
+QR_IMAGE_ID = "YAHAN_APNA_FILE_ID_DALNA_HAI" # Yahan apna wahi Telegram wala file_id zaroor daal dein
 DOWNLOAD_FILE_LINK = "File ka link abhi add nahi kiya gaya hai. Kripya baad mein check karein." 
 
 # ================= DATABASE SETUP =================
@@ -162,9 +162,8 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             await query.message.delete()
         except Exception as e:
-            # Agar file_id mein koi error ho toh text format mein bhej dega taaki app crash na ho
             await query.edit_message_text(
-                text=text + f"\n\n*(QR image load nahi ho paayi. Kripya support par contact karein)*", 
+                text=text + f"\n\n*(QR image load nahi ho paayi. Kripya file ID check karein)*", 
                 reply_markup=InlineKeyboardMarkup(keyboard), 
                 parse_mode="Markdown"
             )
@@ -197,7 +196,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         users = db_query("SELECT COUNT(*) FROM users", fetchone=True)[0]
         text = f"⚙️ **Admin Panel**\n\n👥 Total Users: `{users}`\n\n**Commands:**\n`/broadcast msg`\n`/addkey KEY`\n`/ban user_id`\n`/unban user_id`"
         keyboard = [[InlineKeyboardButton("🔙 Back", callback_data='back')]]
-        await query.edit_message_text(text, reply_markup=Get_keyboard_back := InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
 
     elif query.data.startswith('approve_'):
         target_user_id = int(query.data.split('_')[1])
