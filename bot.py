@@ -9,8 +9,8 @@ ADMIN_ID = 1833467870
 
 SUPPORT_USERNAME = "itsokbroitok"  
 CHANNEL_LINK = "https://t.me/MYSYQHUB" 
-CHANNEL_USERNAME = "@MYSYQHUB" # Force subscription ke liye
-QR_IMAGE_ID = "YAHAN_APNA_FILE_ID_DALNA_HAI" # Apna wahi file_id yahan dalein
+CHANNEL_USERNAME = "@MYSYQHUB" 
+QR_IMAGE_ID = "YAHAN_APNA_FILE_ID_DALNA_HAI" # Agar aapne file_id di thi toh wo yahan dalein, ya neeche fallback link hai
 DOWNLOAD_FILE_LINK = "File ka link abhi add nahi kiya gaya hai. Kripya baad mein check karein." 
 
 # ================= DATABASE SETUP =================
@@ -51,7 +51,6 @@ def check_ban(user_id):
     user = db_query("SELECT is_banned FROM users WHERE user_id = ?", (user_id,), fetchone=True)
     return user[0] == 1 if user else False
 
-# Force Subscription Check
 async def check_subscription(user_id, context):
     try:
         member = await context.bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
@@ -95,7 +94,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if check_ban(user.id):
         return await update.message.reply_text("❌ Aapko is bot se ban kar diya gaya hai.")
 
-    # Referral detection from start payload
     ref_id = 0
     if context.args:
         try:
@@ -105,7 +103,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     add_user(user.id, user.first_name, ref_id)
 
-    # Force Subscription Check
     is_joined = await check_subscription(user.id, context)
     if not is_joined:
         keyboard = [
@@ -120,7 +117,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.message.reply_text(
-        f"Welcome to Master Bot, {user.first_name}! 👑\nSelect an option below:", 
+        f"Welcome to After Dark Store, {user.first_name}! 👑\nSelect an option below:", 
         reply_markup=get_main_menu(user.id)
     )
 
@@ -137,13 +134,13 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data == 'check_sub':
         is_joined = await check_subscription(user_id, context)
         if is_joined:
-            text = f"Welcome to Master Bot, {first_name}! 👑\nSelect an option below:"
+            text = f"Welcome to After Dark Store, {first_name}! 👑\nSelect an option below:"
             await query.edit_message_text(text, reply_markup=get_main_menu(user_id))
         else:
             await query.answer("❌ Aapne abhi tak channel join nahi kiya hai!", show_alert=True)
 
     elif query.data == 'back':
-        text = f"Welcome to Master Bot, {first_name}! 👑\nSelect an option below:"
+        text = f"Welcome to After Dark Store, {first_name}! 👑\nSelect an option below:"
         await query.edit_message_text(text, reply_markup=get_main_menu(user_id))
         
     elif query.data == 'jarvis':
@@ -154,6 +151,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         amount = query.data.split('_')[1]
         text = f"🛒 **Plan Selected:** ₹{amount}\n\n📷 **Payment Instructions:**\nNeeche diye gaye QR Code ko scan karein aur ₹{amount} pay karein.\n\nPayment ke baad apna **12-digit UPI Transaction ID (UTR)** yahan bhej dein."
         keyboard = [[InlineKeyboardButton("🔙 Back to Plans", callback_data='back_from_photo')]]
+        
         try:
             await context.bot.send_photo(
                 chat_id=user_id,
@@ -163,12 +161,17 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode="Markdown"
             )
             await query.message.delete()
-        except:
-            await query.edit_message_text(text=text + "\n\n*(QR Code image ID set nahi hai!)*", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        except Exception as e:
+            # Agar file_id mein koi error ho toh text format mein bhej dega taaki app crash na ho
+            await query.edit_message_text(
+                text=text + f"\n\n*(QR image load nahi ho paayi. Kripya support par contact karein)*", 
+                reply_markup=InlineKeyboardMarkup(keyboard), 
+                parse_mode="Markdown"
+            )
         
     elif query.data == 'back_from_photo':
         await query.message.delete()
-        text = f"Welcome to Master Bot, {first_name}! 👑\nSelect an option below:"
+        text = f"Welcome to After Dark Store, {first_name}! 👑\nSelect an option below:"
         await context.bot.send_message(chat_id=user_id, text=text, reply_markup=get_main_menu(user_id))
         
     elif query.data == 'download_file':
@@ -194,11 +197,10 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         users = db_query("SELECT COUNT(*) FROM users", fetchone=True)[0]
         text = f"⚙️ **Admin Panel**\n\n👥 Total Users: `{users}`\n\n**Commands:**\n`/broadcast msg`\n`/addkey KEY`\n`/ban user_id`\n`/unban user_id`"
         keyboard = [[InlineKeyboardButton("🔙 Back", callback_data='back')]]
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        await query.edit_message_text(text, reply_markup=Get_keyboard_back := InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
 
     elif query.data.startswith('approve_'):
         target_user_id = int(query.data.split('_')[1])
-        # Generate a random license key automatically
         key_str = "JARVIS-" + ''.join(random.choices(string.ascii_uppercase + string.digits, k=10))
         db_query("UPDATE users SET is_premium = 1 WHERE user_id = ?", (target_user_id,), commit=True)
         
@@ -210,7 +212,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         except:
             pass
-        await query.edit_message_caption(caption=query.message.caption + "\n\n✅ **Approved & Key Sent!**", parse_markup=None)
+        await query.edit_message_caption(caption=query.message.caption + "\n\n✅ **Approved & Key Sent!**", reply_markup=None)
 
 # ================= MESSAGE & ADMIN HANDLERS =================
 async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -219,7 +221,7 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if user_id == ADMIN_ID and update.message.photo:
         photo_id = update.message.photo[-1].file_id
-        await update.message.reply_text(f"📸 **File ID:**\n`{photo_id}`", parse_mode="Markdown")
+        await update.message.reply_text(f"📸 **File ID:**\n`{photo_id}`\n\nIse copy karke code mein `QR_IMAGE_ID` ki jagah daal dein!", parse_mode="Markdown")
         return
 
     if user_id == ADMIN_ID and update.message.text:
@@ -248,7 +250,6 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if user_id != ADMIN_ID and update.message.text:
         text = update.message.text
-        # Send payment verification request to admin with an 'Approve' button
         keyboard = [[InlineKeyboardButton("✅ Approve & Send Key", callback_data=f'approve_{user_id}')]]
         await context.bot.send_message(
             chat_id=ADMIN_ID,
@@ -266,5 +267,5 @@ if __name__ == '__main__':
     app.add_handler(CallbackQueryHandler(buttons))
     app.add_handler(MessageHandler(filters.PHOTO | filters.TEXT & ~filters.COMMAND, handle_messages))
     
-    print("Master Bot Started with All Features...")
+    print("After Dark Store Bot Started...")
     app.run_polling()
